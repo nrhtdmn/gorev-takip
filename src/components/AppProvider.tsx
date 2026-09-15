@@ -42,11 +42,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     setLoading(true)
-    const unsubMembers = subscribeMembers(setMembers)
+    const onError = (error: Error) => {
+      console.error('Firestore hatası:', error)
+      setLoading(false)
+    }
+    const unsubMembers = subscribeMembers(setMembers, onError)
     const unsubTasks = subscribeTasks((list) => {
       setTasks(list)
       setLoading(false)
-    })
+    }, onError)
 
     return () => {
       unsubMembers()

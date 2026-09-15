@@ -71,26 +71,40 @@ export async function upsertMember(
   )
 }
 
-export function subscribeMembers(onData: (members: Member[]) => void): Unsubscribe {
+export function subscribeMembers(
+  onData: (members: Member[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
   const q = query(membersCol(), orderBy('createdAt', 'asc'))
-  return onSnapshot(q, (snap) => {
-    const members = snap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as Omit<Member, 'id'>),
-    }))
-    onData(members)
-  })
+  return onSnapshot(
+    q,
+    (snap) => {
+      const members = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<Member, 'id'>),
+      }))
+      onData(members)
+    },
+    (error) => onError?.(error),
+  )
 }
 
-export function subscribeTasks(onData: (tasks: Task[]) => void): Unsubscribe {
+export function subscribeTasks(
+  onData: (tasks: Task[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
   const q = query(tasksCol(), orderBy('createdAt', 'desc'))
-  return onSnapshot(q, (snap) => {
-    const tasks = snap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as Omit<Task, 'id'>),
-    }))
-    onData(tasks)
-  })
+  return onSnapshot(
+    q,
+    (snap) => {
+      const tasks = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<Task, 'id'>),
+      }))
+      onData(tasks)
+    },
+    (error) => onError?.(error),
+  )
 }
 
 export function subscribeUpdates(

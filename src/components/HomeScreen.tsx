@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../hooks/useApp'
+import { FAMILY_PROFILES } from '../lib/family'
 import type { Task, TaskStatus } from '../types'
 import { NewTaskForm } from './NewTaskForm'
 import { StatsBar } from './StatsBar'
@@ -7,7 +8,7 @@ import { TaskCard } from './TaskCard'
 import { TaskDetail } from './TaskDetail'
 
 export function HomeScreen() {
-  const { session, tasks, members, loading, demoMode, setSession } = useApp()
+  const { session, tasks, loading, demoMode, switchProfile } = useApp()
   const [filter, setFilter] = useState<TaskStatus | 'all'>('all')
   const [selected, setSelected] = useState<Task | null>(null)
   const [creating, setCreating] = useState(false)
@@ -38,8 +39,8 @@ export function HomeScreen() {
           >
             {session.memberName.slice(0, 1).toUpperCase()}
           </div>
-          <button type="button" className="btn ghost compact" onClick={() => setSession(null)}>
-            Çıkış
+          <button type="button" className="btn ghost compact" onClick={switchProfile}>
+            Değiştir
           </button>
         </div>
       </header>
@@ -55,14 +56,12 @@ export function HomeScreen() {
       <section className="members-row">
         <p className="eyebrow">Grup</p>
         <div className="member-list">
-          {(members.length ? members : [{ id: session.memberId, name: session.memberName, color: session.memberColor, createdAt: 0 }]).map(
-            (m) => (
-              <div key={m.id} className="member-pill">
-                <span className="dot" style={{ background: m.color }} />
-                {m.name}
-              </div>
-            ),
-          )}
+          {FAMILY_PROFILES.map((p) => (
+            <div key={p.id} className="member-pill">
+              <span className="dot" style={{ background: p.color }} />
+              {p.name}
+            </div>
+          ))}
         </div>
       </section>
 

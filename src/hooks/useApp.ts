@@ -9,6 +9,7 @@ export interface AppState {
   loading: boolean
   demoMode: boolean
   setSession: (session: Session | null) => void
+  switchProfile: () => void
   refreshLocal?: () => void
 }
 

@@ -265,6 +265,48 @@ textarea:focus {
   outline-offset: 2px;
 }
 
+.profile-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.profile-pick-btn {
+  display: grid;
+  gap: 0.65rem;
+  justify-items: center;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 1.1rem 0.75rem;
+  background: rgba(255, 255, 255, 0.85);
+  font-weight: 800;
+  font-family: var(--display);
+  font-size: 1.1rem;
+  color: var(--ink);
+  transition: transform 0.15s ease, box-shadow 0.2s;
+}
+
+.profile-pick-btn:hover,
+.profile-pick-btn:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--pick) 28%, transparent);
+}
+
+.profile-pick-btn:disabled {
+  opacity: 0.6;
+}
+
+.profile-pick-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--pick);
+  color: white;
+  font-size: 1.35rem;
+}
+
 /* App shell */
 .app-shell {
   width: min(720px, 100%);

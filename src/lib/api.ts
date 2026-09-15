@@ -13,7 +13,10 @@ import {
 import { getDb, GROUP_ID } from './firebase'
 import type { Member, Task, TaskCategory, TaskStatus, TaskUpdate } from '../types'
 
+import { getFamilyProfile, FAMILY_PROFILES } from './family'
+
 const SESSION_KEY = 'gorevtakip_session'
+const UNLOCK_KEY = 'gorevtakip_family_unlocked'
 
 export interface Session {
   memberId: string
@@ -22,11 +25,47 @@ export interface Session {
   unlocked: boolean
 }
 
+export function isFamilyUnlocked(): boolean {
+  return localStorage.getItem(UNLOCK_KEY) === '1'
+}
+
+export function setFamilyUnlocked(value: boolean) {
+  if (value) localStorage.setItem(UNLOCK_KEY, '1')
+  else localStorage.removeItem(UNLOCK_KEY)
+}
+
+function normalizeSession(session: Session): Session {
+  const fixed =
+    getFamilyProfile(session.memberId) ||
+    FAMILY_PROFILES.find(
+      (p) => p.name.toLowerCase() === session.memberName.trim().toLowerCase(),
+    )
+
+  if (!fixed) return session
+
+  return {
+    memberId: fixed.id,
+    memberName: fixed.name,
+    memberColor: fixed.color,
+    unlocked: true,
+  }
+}
+
 export function loadSession(): Session | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY)
     if (!raw) return null
-    return JSON.parse(raw) as Session
+    const parsed = JSON.parse(raw) as Session
+    if (!parsed.unlocked || !parsed.memberId) return null
+    const session = normalizeSession(parsed)
+    if (
+      session.memberId !== parsed.memberId ||
+      session.memberName !== parsed.memberName
+    ) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+      setFamilyUnlocked(true)
+    }
+    return session
   } catch {
     return null
   }
@@ -34,11 +73,18 @@ export function loadSession(): Session | null {
 
 export function saveSession(session: Session) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  setFamilyUnlocked(true)
 }
 
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
 }
+
+/** Sadece profil değiştir — aile şifresi sorulmaz */
+export function clearProfileOnly() {
+  localStorage.removeItem(SESSION_KEY)
+}
+
 
 function membersCol() {
   return collection(getDb(), 'groups', GROUP_ID, 'members')

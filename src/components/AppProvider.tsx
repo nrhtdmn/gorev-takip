@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AppContext } from '../hooks/useApp'
 import {
+  clearProfileOnly,
   clearSession,
   loadSession,
   saveSession,
@@ -24,6 +25,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (next) saveSession(next)
     else clearSession()
     setSessionState(next)
+  }
+
+  /** Profil değiştir (Gizem ↔ Nurhat) — aile şifresi sorulmaz */
+  const switchProfile = () => {
+    clearProfileOnly()
+    setSessionState(null)
   }
 
   const refreshLocal = () => setTick((t) => t + 1)
@@ -66,6 +73,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loading,
       demoMode,
       setSession,
+      switchProfile,
       refreshLocal,
     }),
     [session, members, tasks, loading, demoMode],

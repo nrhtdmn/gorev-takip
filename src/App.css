@@ -189,9 +189,21 @@ textarea:focus {
   color: var(--ink-soft);
 }
 
-.profile-pick-wrap {
-  display: grid;
+.profile-pick-btn span {
+  display: inline-flex;
+  align-items: center;
   gap: 0.35rem;
+}
+
+.lock-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--warn);
+  background: rgba(180, 83, 9, 0.12);
+  border-radius: 999px;
+  padding: 0.15rem 0.4rem;
 }
 
 .profile-delete {

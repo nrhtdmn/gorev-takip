@@ -13,6 +13,9 @@ const firebaseConfig = {
 export const FAMILY_PASSWORD =
   import.meta.env.VITE_FAMILY_PASSWORD || '123456'
 
+/** Nurhat profil şifresi (Gizem şifresiz girer) */
+export const NURHAT_PIN = import.meta.env.VITE_NURHAT_PIN || '2580'
+
 export const GROUP_ID = import.meta.env.VITE_GROUP_ID || 'aile'
 
 export const isFirebaseConfigured =

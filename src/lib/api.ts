@@ -12,7 +12,7 @@ import {
   updateDoc,
   type Unsubscribe,
 } from 'firebase/firestore'
-import { getDb } from './firebase'
+import { getDb, NURHAT_PIN } from './firebase'
 import type {
   Group,
   Profile,
@@ -108,17 +108,38 @@ function updatesCol(groupId: string, taskId: string) {
 
 export async function ensureDefaultProfiles() {
   const snap = await getDocs(profilesCol())
-  if (!snap.empty) return
   const now = Date.now()
-  await Promise.all(
-    DEFAULT_PROFILES.map((p) =>
-      setDoc(doc(getDb(), 'profiles', p.id), {
-        name: p.name,
-        color: p.color,
-        createdAt: now,
-      }),
-    ),
-  )
+
+  if (snap.empty) {
+    await Promise.all(
+      DEFAULT_PROFILES.map((p) =>
+        setDoc(doc(getDb(), 'profiles', p.id), {
+          name: p.name,
+          color: p.color,
+          createdAt: now,
+          ...(p.id === 'nurhat' ? { pin: NURHAT_PIN } : {}),
+        }),
+      ),
+    )
+    return
+  }
+
+  // Mevcut Nurhat profiline şifre ekle / güncelle
+  const nurhat = snap.docs.find((d) => d.id === 'nurhat')
+  if (nurhat) {
+    await setDoc(
+      nurhat.ref,
+      { pin: NURHAT_PIN, name: 'Nurhat', color: '#1a5c4a' },
+      { merge: true },
+    )
+  } else {
+    await setDoc(doc(getDb(), 'profiles', 'nurhat'), {
+      name: 'Nurhat',
+      color: '#1a5c4a',
+      createdAt: now,
+      pin: NURHAT_PIN,
+    })
+  }
 }
 
 export function subscribeProfiles(
@@ -143,18 +164,22 @@ export function subscribeProfiles(
 export async function createProfile(input: {
   name: string
   color: string
+  pin?: string
 }): Promise<Profile> {
   const id = createLocalId()
+  const pin = input.pin?.trim() || undefined
   const profile: Profile = {
     id,
     name: input.name.trim(),
     color: input.color,
     createdAt: Date.now(),
+    pin,
   }
   await setDoc(doc(getDb(), 'profiles', id), {
     name: profile.name,
     color: profile.color,
     createdAt: profile.createdAt,
+    ...(pin ? { pin } : {}),
   })
   return profile
 }

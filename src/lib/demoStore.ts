@@ -23,6 +23,7 @@ function write<T>(key: string, value: T) {
 
 export function demoEnsureDefaults() {
   let profiles = read<Profile[]>(PROFILES_KEY, [])
+  const nurhatPin = import.meta.env.VITE_NURHAT_PIN || '2580'
   if (profiles.length === 0) {
     const now = Date.now()
     profiles = DEFAULT_PROFILES.map((p) => ({
@@ -30,7 +31,15 @@ export function demoEnsureDefaults() {
       name: p.name,
       color: p.color,
       createdAt: now,
+      ...(p.id === 'nurhat' ? { pin: nurhatPin } : {}),
     }))
+    write(PROFILES_KEY, profiles)
+  } else {
+    profiles = profiles.map((p) =>
+      p.id === 'nurhat' || p.name.toLowerCase() === 'nurhat'
+        ? { ...p, id: 'nurhat', name: 'Nurhat', pin: nurhatPin }
+        : p,
+    )
     write(PROFILES_KEY, profiles)
   }
   let groups = read<Group[]>(GROUPS_KEY, [])
@@ -72,12 +81,13 @@ function allDemoTasks(): DemoTask[] {
   return read<DemoTask[]>(TASKS_KEY, [])
 }
 
-export function demoCreateProfile(name: string, color: string): Profile {
+export function demoCreateProfile(name: string, color: string, pin?: string): Profile {
   const profile: Profile = {
     id: createLocalId(),
     name: name.trim(),
     color,
     createdAt: Date.now(),
+    ...(pin?.trim() ? { pin: pin.trim() } : {}),
   }
   const list = demoGetProfiles()
   list.push(profile)

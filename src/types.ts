@@ -12,6 +12,8 @@ export interface Profile {
   name: string
   color: string
   createdAt: number
+  /** Varsa bu profile giriş için gerekli */
+  pin?: string
 }
 
 /** @deprecated Member = Profile; grup üyeliği group.memberIds ile */
@@ -83,6 +85,10 @@ export const PROFILE_COLORS = [
 ]
 
 export const DEFAULT_PROFILES = [
-  { id: 'gizem', name: 'Gizem', color: '#9f1239' },
-  { id: 'nurhat', name: 'Nurhat', color: '#1a5c4a' },
+  { id: 'gizem', name: 'Gizem', color: '#9f1239', pin: undefined as string | undefined },
+  { id: 'nurhat', name: 'Nurhat', color: '#1a5c4a', pin: '2580' },
 ] as const
+
+export function profileNeedsPin(profile: Profile): boolean {
+  return Boolean(profile.pin && profile.pin.trim())
+}

@@ -13,19 +13,22 @@ import {
   demoDeleteProfile,
   demoEnsureDefaults,
 } from '../lib/demoStore'
-import { PROFILE_COLORS, type Profile } from '../types'
+import { PROFILE_COLORS, profileNeedsPin, type Profile } from '../types'
 
 export function AuthScreen() {
   const { setSession, demoMode, profiles, refreshLocal, logout } = useApp()
-  const [step, setStep] = useState<'password' | 'pick'>(() =>
+  const [step, setStep] = useState<'password' | 'pick' | 'pin'>(() =>
     isFamilyUnlocked() ? 'pick' : 'password',
   )
   const [password, setPassword] = useState('')
+  const [pinInput, setPinInput] = useState('')
+  const [pendingProfile, setPendingProfile] = useState<Profile | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(PROFILE_COLORS[0])
+  const [newPin, setNewPin] = useState('')
 
   useEffect(() => {
     if (step !== 'pick') return
@@ -50,13 +53,35 @@ export function AuthScreen() {
     setStep('pick')
   }
 
-  const enterAs = (profile: Profile) => {
+  const completeEnter = (profile: Profile) => {
     setSession({
       memberId: profile.id,
       memberName: profile.name,
       memberColor: profile.color,
       unlocked: true,
     })
+  }
+
+  const enterAs = (profile: Profile) => {
+    setError('')
+    if (profileNeedsPin(profile)) {
+      setPendingProfile(profile)
+      setPinInput('')
+      setStep('pin')
+      return
+    }
+    completeEnter(profile)
+  }
+
+  const submitPin = (e: FormEvent) => {
+    e.preventDefault()
+    if (!pendingProfile) return
+    if (pinInput.trim() !== pendingProfile.pin?.trim()) {
+      setError('Profil şifresi hatalı')
+      return
+    }
+    setError('')
+    completeEnter(pendingProfile)
   }
 
   const addProfile = async (e: FormEvent) => {
@@ -68,13 +93,16 @@ export function AuthScreen() {
     setBusy(true)
     setError('')
     try {
+      const pin = newPin.trim() || undefined
       const profile = demoMode
-        ? demoCreateProfile(newName, newColor)
-        : await createProfile({ name: newName, color: newColor })
+        ? demoCreateProfile(newName, newColor, pin)
+        : await createProfile({ name: newName, color: newColor, pin })
       refreshLocal?.()
       setCreating(false)
       setNewName('')
-      enterAs(profile)
+      setNewPin('')
+      // Yeni profil şifreliyse hemen sormadan gir (az önce kendi yazdı)
+      completeEnter(profile)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Profil eklenemedi')
     } finally {
@@ -104,13 +132,21 @@ export function AuthScreen() {
           <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" className="brand-logo" />
           <div>
             <p className="eyebrow">Görev Takip</p>
-            <h1>{step === 'password' ? 'Aile girişi' : 'Kim kullanıyor?'}</h1>
+            <h1>
+              {step === 'password'
+                ? 'Aile girişi'
+                : step === 'pin'
+                  ? `${pendingProfile?.name} şifresi`
+                  : 'Kim kullanıyor?'}
+            </h1>
           </div>
         </div>
         <p className="lead">
           {step === 'password'
             ? 'Sadece siz ve eşiniz — aile şifresi bir kez yeterli.'
-            : 'Profilini seç. Yeni profil ekleyebilir veya silebilirsin.'}
+            : step === 'pin'
+              ? 'Bu profil kilitli. Şifreyi girerek devam et.'
+              : 'Kilitli profiller şifre ister. Diğerleri doğrudan açılır.'}
         </p>
 
         {demoMode && (
@@ -138,6 +174,37 @@ export function AuthScreen() {
               Kilidi aç
             </button>
           </form>
+        ) : step === 'pin' && pendingProfile ? (
+          <form onSubmit={submitPin} className="stack">
+            <label>
+              Profil şifresi
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="Şifre"
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                autoFocus
+              />
+            </label>
+            {error && <p className="error">{error}</p>}
+            <button type="submit" className="btn primary">
+              Giriş yap
+            </button>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => {
+                setStep('pick')
+                setPendingProfile(null)
+                setPinInput('')
+                setError('')
+              }}
+            >
+              Geri
+            </button>
+          </form>
         ) : creating ? (
           <form onSubmit={addProfile} className="stack">
             <label>
@@ -148,6 +215,16 @@ export function AuthScreen() {
                 placeholder="Örn. Ahmet"
                 autoFocus
                 maxLength={24}
+              />
+            </label>
+            <label>
+              Profil şifresi (isteğe bağlı)
+              <input
+                type="password"
+                inputMode="numeric"
+                value={newPin}
+                onChange={(e) => setNewPin(e.target.value)}
+                placeholder="Boş bırakırsan şifresiz"
               />
             </label>
             <div className="color-picker">
@@ -186,7 +263,10 @@ export function AuthScreen() {
                     onClick={() => enterAs(p)}
                   >
                     <span className="profile-pick-avatar">{p.name.slice(0, 1)}</span>
-                    <span>{p.name}</span>
+                    <span>
+                      {p.name}
+                      {profileNeedsPin(p) ? <span className="lock-badge">kilitli</span> : null}
+                    </span>
                   </button>
                   <button
                     type="button"

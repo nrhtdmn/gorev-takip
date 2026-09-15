@@ -1,0 +1,4 @@
+/* Global resets live mostly in App.css; keep entry thin. */
+body {
+  margin: 0;
+}

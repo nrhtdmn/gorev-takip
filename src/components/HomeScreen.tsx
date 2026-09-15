@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../hooks/useApp'
-import { FAMILY_PROFILES } from '../lib/family'
 import type { Task, TaskStatus } from '../types'
 import { NewTaskForm } from './NewTaskForm'
 import { StatsBar } from './StatsBar'
@@ -8,10 +7,29 @@ import { TaskCard } from './TaskCard'
 import { TaskDetail } from './TaskDetail'
 
 export function HomeScreen() {
-  const { session, tasks, loading, demoMode, switchProfile } = useApp()
+  const {
+    session,
+    tasks,
+    profiles,
+    groups,
+    loading,
+    demoMode,
+    switchProfile,
+    leaveGroup,
+    logout,
+  } = useApp()
   const [filter, setFilter] = useState<TaskStatus | 'all'>('all')
   const [selected, setSelected] = useState<Task | null>(null)
   const [creating, setCreating] = useState(false)
+
+  const currentGroup = groups.find((g) => g.id === session?.groupId)
+
+  const groupMembers = useMemo(() => {
+    if (!currentGroup) return []
+    return currentGroup.memberIds
+      .map((id) => profiles.find((p) => p.id === id))
+      .filter(Boolean)
+  }, [currentGroup, profiles])
 
   const filtered = useMemo(() => {
     if (filter === 'all') return tasks
@@ -22,14 +40,19 @@ export function HomeScreen() {
     ? tasks.find((t) => t.id === selected.id) || selected
     : null
 
-  if (!session) return null
+  if (!session?.groupId) return null
 
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand-block">
-          <p className="eyebrow">Görev Takip</p>
-          <h1>Merhaba, {session.memberName}</h1>
+        <div className="brand-block brand-lockup">
+          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" className="brand-logo sm" />
+          <div>
+            <button type="button" className="eyebrow linkish" onClick={leaveGroup}>
+              ← Gruplar · {session.groupName || 'Grup'}
+            </button>
+            <h1>Merhaba, {session.memberName}</h1>
+          </div>
         </div>
         <div className="topbar-actions">
           <div
@@ -40,7 +63,10 @@ export function HomeScreen() {
             {session.memberName.slice(0, 1).toUpperCase()}
           </div>
           <button type="button" className="btn ghost compact" onClick={switchProfile}>
-            Değiştir
+            Profil
+          </button>
+          <button type="button" className="btn ghost compact" onClick={logout}>
+            Çıkış
           </button>
         </div>
       </header>
@@ -54,14 +80,16 @@ export function HomeScreen() {
       <StatsBar filter={filter} onFilter={setFilter} />
 
       <section className="members-row">
-        <p className="eyebrow">Grup</p>
+        <p className="eyebrow">Bu gruptakiler</p>
         <div className="member-list">
-          {FAMILY_PROFILES.map((p) => (
-            <div key={p.id} className="member-pill">
-              <span className="dot" style={{ background: p.color }} />
-              {p.name}
-            </div>
-          ))}
+          {groupMembers.map((m) =>
+            m ? (
+              <div key={m.id} className="member-pill">
+                <span className="dot" style={{ background: m.color }} />
+                {m.name}
+              </div>
+            ) : null,
+          )}
         </div>
       </section>
 
@@ -93,7 +121,13 @@ export function HomeScreen() {
       </button>
 
       {creating && <NewTaskForm onClose={() => setCreating(false)} />}
-      {liveSelected && <TaskDetail task={liveSelected} onClose={() => setSelected(null)} />}
+      {liveSelected && (
+        <TaskDetail
+          task={liveSelected}
+          onClose={() => setSelected(null)}
+          onDeleted={() => setSelected(null)}
+        />
+      )}
     </div>
   )
 }

@@ -150,6 +150,123 @@ textarea:focus {
   border: 1px solid var(--line);
 }
 
+.btn.danger {
+  background: #9f1239;
+  color: white;
+  box-shadow: 0 10px 24px rgba(159, 18, 57, 0.22);
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(26, 92, 74, 0.25);
+  flex-shrink: 0;
+}
+
+.brand-logo.sm {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+}
+
+.eyebrow.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.lead.soft {
+  margin: -0.35rem 0 1rem;
+  color: var(--ink-soft);
+}
+
+.profile-pick-wrap {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.profile-delete {
+  border: none;
+  background: transparent;
+  color: var(--danger);
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.2rem;
+}
+
+.group-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+}
+
+.group-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 18px;
+  padding: 0.55rem;
+  box-shadow: var(--shadow);
+}
+
+.group-main {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.group-main strong {
+  font-family: var(--display);
+  font-size: 1.15rem;
+}
+
+.group-main span {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.member-check-list {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.member-check {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--line);
+  font-weight: 600;
+}
+
+.member-check .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.auth-card .brand-lockup {
+  margin-bottom: 0.35rem;
+}
+
 .btn.compact {
   padding: 0.55rem 0.95rem;
   font-size: 0.9rem;

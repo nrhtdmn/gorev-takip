@@ -1,10 +1,12 @@
-import type { Member, Task, TaskCategory, TaskStatus, TaskUpdate } from '../types'
+import type { Group, Profile, Task, TaskCategory, TaskStatus, TaskUpdate } from '../types'
 import type { Session } from './api'
 import { createLocalId } from './api'
+import { DEFAULT_PROFILES } from '../types'
 
-const MEMBERS_KEY = 'gorevtakip_demo_members'
-const TASKS_KEY = 'gorevtakip_demo_tasks'
-const UPDATES_KEY = 'gorevtakip_demo_updates'
+const PROFILES_KEY = 'gorevtakip_v2_profiles'
+const GROUPS_KEY = 'gorevtakip_v2_groups'
+const TASKS_KEY = 'gorevtakip_v2_tasks'
+const UPDATES_KEY = 'gorevtakip_v2_updates'
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -19,37 +21,133 @@ function write<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value))
 }
 
-export function demoGetMembers(): Member[] {
-  return read<Member[]>(MEMBERS_KEY, [])
+export function demoEnsureDefaults() {
+  let profiles = read<Profile[]>(PROFILES_KEY, [])
+  if (profiles.length === 0) {
+    const now = Date.now()
+    profiles = DEFAULT_PROFILES.map((p) => ({
+      id: p.id,
+      name: p.name,
+      color: p.color,
+      createdAt: now,
+    }))
+    write(PROFILES_KEY, profiles)
+  }
+  let groups = read<Group[]>(GROUPS_KEY, [])
+  if (groups.length === 0) {
+    groups = [
+      {
+        id: 'aile',
+        name: 'Ev',
+        memberIds: profiles.map((p) => p.id),
+        createdAt: Date.now(),
+        createdById: 'sistem',
+        createdByName: 'sistem',
+      },
+    ]
+    write(GROUPS_KEY, groups)
+  }
 }
 
-export function demoGetTasks(): Task[] {
-  return read<Task[]>(TASKS_KEY, []).sort((a, b) => b.createdAt - a.createdAt)
+export function demoGetProfiles() {
+  demoEnsureDefaults()
+  return read<Profile[]>(PROFILES_KEY, [])
 }
 
-export function demoGetUpdates(taskId: string): TaskUpdate[] {
-  const all = read<TaskUpdate[]>(UPDATES_KEY, [])
-  return all.filter((u) => u.taskId === taskId).sort((a, b) => a.createdAt - b.createdAt)
+export function demoGetGroups() {
+  demoEnsureDefaults()
+  return read<Group[]>(GROUPS_KEY, [])
 }
 
-export function demoUpsertMember(member: Member) {
-  const members = demoGetMembers()
-  const idx = members.findIndex((m) => m.id === member.id)
-  if (idx >= 0) members[idx] = member
-  else members.push(member)
-  write(MEMBERS_KEY, members)
+export function demoGetTasks(groupId: string) {
+  return read<Task[]>(TASKS_KEY, [])
+    .filter((t) => (t as Task & { groupId?: string }).groupId === groupId || !(t as Task & { groupId?: string }).groupId && groupId === 'aile')
+    .sort((a, b) => b.createdAt - a.createdAt)
+}
+
+// Store tasks with groupId field in demo
+type DemoTask = Task & { groupId: string }
+
+function allDemoTasks(): DemoTask[] {
+  return read<DemoTask[]>(TASKS_KEY, [])
+}
+
+export function demoCreateProfile(name: string, color: string): Profile {
+  const profile: Profile = {
+    id: createLocalId(),
+    name: name.trim(),
+    color,
+    createdAt: Date.now(),
+  }
+  const list = demoGetProfiles()
+  list.push(profile)
+  write(PROFILES_KEY, list)
+  return profile
+}
+
+export function demoDeleteProfile(id: string) {
+  write(
+    PROFILES_KEY,
+    demoGetProfiles().filter((p) => p.id !== id),
+  )
+  write(
+    GROUPS_KEY,
+    demoGetGroups().map((g) => ({
+      ...g,
+      memberIds: g.memberIds.filter((m) => m !== id),
+    })),
+  )
+}
+
+export function demoCreateGroup(
+  name: string,
+  member: Session,
+  memberIds: string[],
+): Group {
+  const group: Group = {
+    id: createLocalId(),
+    name: name.trim(),
+    memberIds: Array.from(new Set([member.memberId, ...memberIds])),
+    createdAt: Date.now(),
+    createdById: member.memberId,
+    createdByName: member.memberName,
+  }
+  const list = demoGetGroups()
+  list.push(group)
+  write(GROUPS_KEY, list)
+  return group
+}
+
+export function demoUpdateGroupMembers(groupId: string, memberIds: string[]) {
+  write(
+    GROUPS_KEY,
+    demoGetGroups().map((g) => (g.id === groupId ? { ...g, memberIds } : g)),
+  )
+}
+
+export function demoDeleteGroup(groupId: string) {
+  write(
+    GROUPS_KEY,
+    demoGetGroups().filter((g) => g.id !== groupId),
+  )
+  write(
+    TASKS_KEY,
+    allDemoTasks().filter((t) => t.groupId !== groupId),
+  )
 }
 
 export function demoCreateTask(input: {
+  groupId: string
   title: string
   description: string
   category: TaskCategory
   member: Session
-}): string {
+}) {
   const now = Date.now()
   const id = createLocalId()
-  const task: Task = {
+  const task: DemoTask = {
     id,
+    groupId: input.groupId,
     title: input.title.trim(),
     description: input.description.trim(),
     category: input.category,
@@ -59,7 +157,7 @@ export function demoCreateTask(input: {
     createdAt: now,
     updatedAt: now,
   }
-  const tasks = demoGetTasks()
+  const tasks = allDemoTasks()
   tasks.unshift(task)
   write(TASKS_KEY, tasks)
 
@@ -78,7 +176,14 @@ export function demoCreateTask(input: {
   return id
 }
 
+export function demoGetUpdates(taskId: string) {
+  return read<TaskUpdate[]>(UPDATES_KEY, [])
+    .filter((u) => u.taskId === taskId)
+    .sort((a, b) => a.createdAt - b.createdAt)
+}
+
 export function demoUpdateStatus(input: {
+  groupId: string
   taskId: string
   status: TaskStatus
   member: Session
@@ -86,10 +191,9 @@ export function demoUpdateStatus(input: {
   failReason?: string
 }) {
   const now = Date.now()
-  const tasks = demoGetTasks()
+  const tasks = allDemoTasks()
   const task = tasks.find((t) => t.id === input.taskId)
   if (!task) return
-
   task.status = input.status
   task.updatedAt = now
   task.assigneeId = input.member.memberId
@@ -129,10 +233,15 @@ export function demoUpdateStatus(input: {
   write(UPDATES_KEY, updates)
 }
 
-export function demoAddNote(input: { taskId: string; member: Session; message: string }) {
+export function demoAddNote(input: {
+  taskId: string
+  member: Session
+  message: string
+  groupId: string
+}) {
   const text = input.message.trim()
   if (!text) return
-  const tasks = demoGetTasks()
+  const tasks = allDemoTasks()
   const task = tasks.find((t) => t.id === input.taskId)
   if (task) {
     task.updatedAt = Date.now()
@@ -149,4 +258,21 @@ export function demoAddNote(input: { taskId: string; member: Session; message: s
     createdAt: Date.now(),
   })
   write(UPDATES_KEY, updates)
+}
+
+export function demoDeleteTask(taskId: string) {
+  write(
+    TASKS_KEY,
+    allDemoTasks().filter((t) => t.id !== taskId),
+  )
+  write(
+    UPDATES_KEY,
+    read<TaskUpdate[]>(UPDATES_KEY, []).filter((u) => u.taskId !== taskId),
+  )
+}
+
+export function demoGetTasksForGroup(groupId: string) {
+  return allDemoTasks()
+    .filter((t) => t.groupId === groupId)
+    .sort((a, b) => b.createdAt - a.createdAt)
 }

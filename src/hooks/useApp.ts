@@ -1,15 +1,18 @@
 import { createContext, useContext } from 'react'
-import type { Member, Task } from '../types'
+import type { Group, Profile, Task } from '../types'
 import type { Session } from '../lib/api'
 
 export interface AppState {
   session: Session | null
-  members: Member[]
+  profiles: Profile[]
+  groups: Group[]
   tasks: Task[]
   loading: boolean
   demoMode: boolean
   setSession: (session: Session | null) => void
   switchProfile: () => void
+  leaveGroup: () => void
+  logout: () => void
   refreshLocal?: () => void
 }
 

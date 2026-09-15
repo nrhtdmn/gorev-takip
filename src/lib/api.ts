@@ -1,7 +1,9 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -10,10 +12,16 @@ import {
   updateDoc,
   type Unsubscribe,
 } from 'firebase/firestore'
-import { getDb, GROUP_ID } from './firebase'
-import type { Member, Task, TaskCategory, TaskStatus, TaskUpdate } from '../types'
-
-import { getFamilyProfile, FAMILY_PROFILES } from './family'
+import { getDb } from './firebase'
+import type {
+  Group,
+  Profile,
+  Task,
+  TaskCategory,
+  TaskStatus,
+  TaskUpdate,
+} from '../types'
+import { DEFAULT_PROFILES } from '../types'
 
 const SESSION_KEY = 'gorevtakip_session'
 const UNLOCK_KEY = 'gorevtakip_family_unlocked'
@@ -23,6 +31,8 @@ export interface Session {
   memberName: string
   memberColor: string
   unlocked: boolean
+  groupId?: string
+  groupName?: string
 }
 
 export function isFamilyUnlocked(): boolean {
@@ -34,37 +44,12 @@ export function setFamilyUnlocked(value: boolean) {
   else localStorage.removeItem(UNLOCK_KEY)
 }
 
-function normalizeSession(session: Session): Session {
-  const fixed =
-    getFamilyProfile(session.memberId) ||
-    FAMILY_PROFILES.find(
-      (p) => p.name.toLowerCase() === session.memberName.trim().toLowerCase(),
-    )
-
-  if (!fixed) return session
-
-  return {
-    memberId: fixed.id,
-    memberName: fixed.name,
-    memberColor: fixed.color,
-    unlocked: true,
-  }
-}
-
 export function loadSession(): Session | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as Session
-    if (!parsed.unlocked || !parsed.memberId) return null
-    const session = normalizeSession(parsed)
-    if (
-      session.memberId !== parsed.memberId ||
-      session.memberName !== parsed.memberName
-    ) {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-      setFamilyUnlocked(true)
-    }
+    const session = JSON.parse(raw) as Session
+    if (!session.unlocked || !session.memberId) return null
     return session
   } catch {
     return null
@@ -80,98 +65,211 @@ export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
 }
 
-/** Sadece profil değiştir — aile şifresi sorulmaz */
 export function clearProfileOnly() {
   localStorage.removeItem(SESSION_KEY)
 }
 
-
-function membersCol() {
-  return collection(getDb(), 'groups', GROUP_ID, 'members')
+/** Tam çıkış: profil + aile kilidi */
+export function fullLogout() {
+  localStorage.removeItem(SESSION_KEY)
+  setFamilyUnlocked(false)
 }
 
-function tasksCol() {
-  return collection(getDb(), 'groups', GROUP_ID, 'tasks')
+export function createLocalId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  return `id_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 }
 
-function taskDoc(taskId: string) {
-  return doc(getDb(), 'groups', GROUP_ID, 'tasks', taskId)
+function profilesCol() {
+  return collection(getDb(), 'profiles')
 }
 
-function updatesCol(taskId: string) {
-  return collection(getDb(), 'groups', GROUP_ID, 'tasks', taskId, 'updates')
+function groupsCol() {
+  return collection(getDb(), 'groups')
 }
 
-export async function upsertMember(
-  member: Omit<Member, 'createdAt'> & { createdAt?: number },
-) {
-  const ref = doc(getDb(), 'groups', GROUP_ID, 'members', member.id)
-  await setDoc(
-    ref,
-    {
-      name: member.name,
-      color: member.color,
-      createdAt: member.createdAt ?? Date.now(),
-    },
-    { merge: true },
+function groupDoc(groupId: string) {
+  return doc(getDb(), 'groups', groupId)
+}
+
+function tasksCol(groupId: string) {
+  return collection(getDb(), 'groups', groupId, 'tasks')
+}
+
+function taskDoc(groupId: string, taskId: string) {
+  return doc(getDb(), 'groups', groupId, 'tasks', taskId)
+}
+
+function updatesCol(groupId: string, taskId: string) {
+  return collection(getDb(), 'groups', groupId, 'tasks', taskId, 'updates')
+}
+
+export async function ensureDefaultProfiles() {
+  const snap = await getDocs(profilesCol())
+  if (!snap.empty) return
+  const now = Date.now()
+  await Promise.all(
+    DEFAULT_PROFILES.map((p) =>
+      setDoc(doc(getDb(), 'profiles', p.id), {
+        name: p.name,
+        color: p.color,
+        createdAt: now,
+      }),
+    ),
   )
 }
 
-export function subscribeMembers(
-  onData: (members: Member[]) => void,
+export function subscribeProfiles(
+  onData: (profiles: Profile[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const q = query(membersCol(), orderBy('createdAt', 'asc'))
+  const q = query(profilesCol(), orderBy('createdAt', 'asc'))
   return onSnapshot(
     q,
     (snap) => {
-      const members = snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as Omit<Member, 'id'>),
-      }))
-      onData(members)
+      onData(
+        snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Profile, 'id'>),
+        })),
+      )
     },
     (error) => onError?.(error),
   )
 }
 
-export function subscribeTasks(
-  onData: (tasks: Task[]) => void,
+export async function createProfile(input: {
+  name: string
+  color: string
+}): Promise<Profile> {
+  const id = createLocalId()
+  const profile: Profile = {
+    id,
+    name: input.name.trim(),
+    color: input.color,
+    createdAt: Date.now(),
+  }
+  await setDoc(doc(getDb(), 'profiles', id), {
+    name: profile.name,
+    color: profile.color,
+    createdAt: profile.createdAt,
+  })
+  return profile
+}
+
+export async function deleteProfile(profileId: string) {
+  await deleteDoc(doc(getDb(), 'profiles', profileId))
+  // Gruplardan çıkar
+  const groupsSnap = await getDocs(groupsCol())
+  await Promise.all(
+    groupsSnap.docs.map(async (g) => {
+      const data = g.data() as Omit<Group, 'id'>
+      if (!data.memberIds?.includes(profileId)) return
+      await updateDoc(g.ref, {
+        memberIds: data.memberIds.filter((id) => id !== profileId),
+      })
+    }),
+  )
+}
+
+export function subscribeGroups(
+  onData: (groups: Group[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const q = query(tasksCol(), orderBy('createdAt', 'desc'))
+  const q = query(groupsCol(), orderBy('createdAt', 'asc'))
   return onSnapshot(
     q,
     (snap) => {
-      const tasks = snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as Omit<Task, 'id'>),
-      }))
-      onData(tasks)
+      onData(
+        snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Group, 'id'>),
+          memberIds: (d.data().memberIds as string[]) || [],
+        })),
+      )
+    },
+    (error) => onError?.(error),
+  )
+}
+
+export async function createGroup(input: {
+  name: string
+  member: Session
+  memberIds: string[]
+}): Promise<Group> {
+  const now = Date.now()
+  const ids = Array.from(new Set([input.member.memberId, ...input.memberIds]))
+  const ref = await addDoc(groupsCol(), {
+    name: input.name.trim(),
+    memberIds: ids,
+    createdAt: now,
+    createdById: input.member.memberId,
+    createdByName: input.member.memberName,
+  })
+  return {
+    id: ref.id,
+    name: input.name.trim(),
+    memberIds: ids,
+    createdAt: now,
+    createdById: input.member.memberId,
+    createdByName: input.member.memberName,
+  }
+}
+
+export async function updateGroupMembers(groupId: string, memberIds: string[]) {
+  await updateDoc(groupDoc(groupId), { memberIds })
+}
+
+export async function deleteGroup(groupId: string) {
+  const tasks = await getDocs(tasksCol(groupId))
+  await Promise.all(tasks.docs.map((t) => deleteDoc(t.ref)))
+  await deleteDoc(groupDoc(groupId))
+}
+
+export function subscribeTasks(
+  groupId: string,
+  onData: (tasks: Task[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  const q = query(tasksCol(groupId), orderBy('createdAt', 'desc'))
+  return onSnapshot(
+    q,
+    (snap) => {
+      onData(
+        snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Task, 'id'>),
+        })),
+      )
     },
     (error) => onError?.(error),
   )
 }
 
 export function subscribeUpdates(
+  groupId: string,
   taskId: string,
   onData: (updates: TaskUpdate[]) => void,
 ): Unsubscribe {
-  const q = query(updatesCol(taskId), orderBy('createdAt', 'asc'))
+  const q = query(updatesCol(groupId, taskId), orderBy('createdAt', 'asc'))
   return onSnapshot(q, (snap) => {
-    const updates = snap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as Omit<TaskUpdate, 'id'>),
-    }))
-    onData(updates)
+    onData(
+      snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<TaskUpdate, 'id'>),
+      })),
+    )
   })
 }
 
 async function addUpdate(
+  groupId: string,
   taskId: string,
   data: Omit<TaskUpdate, 'id' | 'taskId' | 'createdAt'> & { createdAt?: number },
 ) {
-  await addDoc(updatesCol(taskId), {
+  await addDoc(updatesCol(groupId, taskId), {
     taskId,
     ...data,
     createdAt: data.createdAt ?? Date.now(),
@@ -180,13 +278,14 @@ async function addUpdate(
 }
 
 export async function createTask(input: {
+  groupId: string
   title: string
   description: string
   category: TaskCategory
   member: Session
 }) {
   const now = Date.now()
-  const ref = await addDoc(tasksCol(), {
+  const ref = await addDoc(tasksCol(input.groupId), {
     title: input.title.trim(),
     description: input.description.trim(),
     category: input.category,
@@ -197,7 +296,7 @@ export async function createTask(input: {
     updatedAt: now,
   })
 
-  await addUpdate(ref.id, {
+  await addUpdate(input.groupId, ref.id, {
     memberId: input.member.memberId,
     memberName: input.member.memberName,
     type: 'created',
@@ -210,6 +309,7 @@ export async function createTask(input: {
 }
 
 export async function updateTaskStatus(input: {
+  groupId: string
   taskId: string
   status: TaskStatus
   member: Session
@@ -235,7 +335,7 @@ export async function updateTaskStatus(input: {
     patch.failReason = input.failReason?.trim() || 'Belirtilmedi'
   }
 
-  await updateDoc(taskDoc(input.taskId), patch)
+  await updateDoc(taskDoc(input.groupId, input.taskId), patch)
 
   const statusLabels: Record<TaskStatus, string> = {
     open: 'Bekliyor',
@@ -253,7 +353,7 @@ export async function updateTaskStatus(input: {
     message += ` · ${input.note.trim()}`
   }
 
-  await addUpdate(input.taskId, {
+  await addUpdate(input.groupId, input.taskId, {
     memberId: input.member.memberId,
     memberName: input.member.memberName,
     type: 'status',
@@ -264,6 +364,7 @@ export async function updateTaskStatus(input: {
 }
 
 export async function addTaskNote(input: {
+  groupId: string
   taskId: string
   member: Session
   message: string
@@ -271,11 +372,11 @@ export async function addTaskNote(input: {
   const text = input.message.trim()
   if (!text) return
 
-  await updateDoc(taskDoc(input.taskId), {
+  await updateDoc(taskDoc(input.groupId, input.taskId), {
     updatedAt: Date.now(),
   })
 
-  await addUpdate(input.taskId, {
+  await addUpdate(input.groupId, input.taskId, {
     memberId: input.member.memberId,
     memberName: input.member.memberName,
     type: 'note',
@@ -283,9 +384,30 @@ export async function addTaskNote(input: {
   })
 }
 
-export function createLocalId() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID()
+export async function deleteTask(groupId: string, taskId: string) {
+  const ups = await getDocs(updatesCol(groupId, taskId))
+  await Promise.all(ups.docs.map((u) => deleteDoc(u.ref)))
+  await deleteDoc(taskDoc(groupId, taskId))
+}
+
+/** Eski tek-grup verisini Ev grubuna taşı (bir kez) */
+export async function migrateLegacyAileIfNeeded(profileId: string) {
+  const groupsSnap = await getDocs(groupsCol())
+  const existing = groupsSnap.docs.find((d) => d.id === 'aile')
+  if (existing?.data()?.name && Array.isArray(existing.data().memberIds)) {
+    return
   }
-  return `m_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+
+  const memberIds = Array.from(new Set(['gizem', 'nurhat', profileId]))
+  await setDoc(
+    groupDoc('aile'),
+    {
+      name: 'Ev',
+      memberIds,
+      createdAt: existing?.data()?.createdAt ?? Date.now(),
+      createdById: profileId,
+      createdByName: 'sistem',
+    },
+    { merge: true },
+  )
 }

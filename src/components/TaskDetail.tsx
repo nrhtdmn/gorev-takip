@@ -2,11 +2,16 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useApp } from '../hooks/useApp'
 import {
   addTaskNote,
+  deleteTask,
   subscribeUpdates,
   updateTaskStatus,
-  type Session,
 } from '../lib/api'
-import { demoAddNote, demoGetUpdates, demoUpdateStatus } from '../lib/demoStore'
+import {
+  demoAddNote,
+  demoDeleteTask,
+  demoGetUpdates,
+  demoUpdateStatus,
+} from '../lib/demoStore'
 import { formatWhen } from '../lib/time'
 import type { Task, TaskStatus, TaskUpdate } from '../types'
 import { CATEGORY_META, STATUS_META } from '../types'
@@ -19,7 +24,15 @@ const ACTIONS: { status: TaskStatus; label: string }[] = [
   { status: 'open', label: 'Beklemeye al' },
 ]
 
-export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
+export function TaskDetail({
+  task,
+  onClose,
+  onDeleted,
+}: {
+  task: Task
+  onClose: () => void
+  onDeleted?: () => void
+}) {
   const { session, demoMode, refreshLocal } = useApp()
   const [updates, setUpdates] = useState<TaskUpdate[]>([])
   const [note, setNote] = useState('')
@@ -28,15 +41,18 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  const groupId = session?.groupId
+
   useEffect(() => {
+    if (!groupId) return
     if (demoMode) {
       setUpdates(demoGetUpdates(task.id))
       return
     }
-    return subscribeUpdates(task.id, setUpdates)
-  }, [task.id, demoMode, task.updatedAt])
+    return subscribeUpdates(groupId, task.id, setUpdates)
+  }, [task.id, demoMode, task.updatedAt, groupId])
 
-  if (!session) return null
+  if (!session || !groupId) return null
 
   const applyStatus = async (status: TaskStatus) => {
     if (status === 'blocked' && !failReason.trim()) {
@@ -50,6 +66,7 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
     try {
       if (demoMode) {
         demoUpdateStatus({
+          groupId,
           taskId: task.id,
           status,
           member: session,
@@ -60,6 +77,7 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
         setUpdates(demoGetUpdates(task.id))
       } else {
         await updateTaskStatus({
+          groupId,
           taskId: task.id,
           status,
           member: session,
@@ -84,15 +102,40 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
     setError('')
     try {
       if (demoMode) {
-        demoAddNote({ taskId: task.id, member: session, message: note })
+        demoAddNote({ groupId, taskId: task.id, member: session, message: note })
         refreshLocal?.()
         setUpdates(demoGetUpdates(task.id))
       } else {
-        await addTaskNote({ taskId: task.id, member: session as Session, message: note })
+        await addTaskNote({
+          groupId,
+          taskId: task.id,
+          member: session,
+          message: note,
+        })
       }
       setNote('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Not eklenemedi')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = async () => {
+    if (!confirm('Bu görevi silmek istiyor musun?')) return
+    setBusy(true)
+    setError('')
+    try {
+      if (demoMode) {
+        demoDeleteTask(task.id)
+        refreshLocal?.()
+      } else {
+        await deleteTask(groupId, task.id)
+      }
+      onDeleted?.()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Silinemedi')
     } finally {
       setBusy(false)
     }
@@ -215,6 +258,12 @@ export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void 
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className="drawer-section">
+          <button type="button" className="btn danger" disabled={busy} onClick={remove}>
+            Görevi sil
+          </button>
         </section>
       </aside>
     </div>

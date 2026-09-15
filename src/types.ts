@@ -7,11 +7,23 @@ export type TaskStatus =
 
 export type TaskCategory = 'ev' | 'is' | 'diger'
 
-export interface Member {
+export interface Profile {
   id: string
   name: string
   color: string
   createdAt: number
+}
+
+/** @deprecated Member = Profile; grup üyeliği group.memberIds ile */
+export type Member = Profile
+
+export interface Group {
+  id: string
+  name: string
+  memberIds: string[]
+  createdAt: number
+  createdById: string
+  createdByName: string
 }
 
 export interface TaskUpdate {
@@ -69,3 +81,8 @@ export const PROFILE_COLORS = [
   '#0e7490',
   '#365314',
 ]
+
+export const DEFAULT_PROFILES = [
+  { id: 'gizem', name: 'Gizem', color: '#9f1239' },
+  { id: 'nurhat', name: 'Nurhat', color: '#1a5c4a' },
+] as const

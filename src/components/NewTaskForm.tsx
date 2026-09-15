@@ -13,7 +13,8 @@ export function NewTaskForm({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  if (!session) return null
+  if (!session?.groupId) return null
+  const groupId = session.groupId
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -25,10 +26,22 @@ export function NewTaskForm({ onClose }: { onClose: () => void }) {
     setError('')
     try {
       if (demoMode) {
-        demoCreateTask({ title, description, category, member: session })
+        demoCreateTask({
+          groupId,
+          title,
+          description,
+          category,
+          member: session,
+        })
         refreshLocal?.()
       } else {
-        await createTask({ title, description, category, member: session })
+        await createTask({
+          groupId,
+          title,
+          description,
+          category,
+          member: session,
+        })
       }
       onClose()
     } catch (err) {

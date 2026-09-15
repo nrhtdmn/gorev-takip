@@ -3,19 +3,29 @@ import { AppContext } from '../hooks/useApp'
 import {
   clearProfileOnly,
   clearSession,
+  ensureDefaultProfiles,
+  fullLogout,
   loadSession,
+  migrateLegacyAileIfNeeded,
   saveSession,
-  subscribeMembers,
+  subscribeGroups,
+  subscribeProfiles,
   subscribeTasks,
   type Session,
 } from '../lib/api'
 import { isFirebaseConfigured } from '../lib/firebase'
-import { demoGetMembers, demoGetTasks } from '../lib/demoStore'
-import type { Member, Task } from '../types'
+import {
+  demoEnsureDefaults,
+  demoGetGroups,
+  demoGetProfiles,
+  demoGetTasksForGroup,
+} from '../lib/demoStore'
+import type { Group, Profile, Task } from '../types'
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [session, setSessionState] = useState<Session | null>(() => loadSession())
-  const [members, setMembers] = useState<Member[]>([])
+  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [tick, setTick] = useState(0)
@@ -27,56 +37,105 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSessionState(next)
   }
 
-  /** Profil değiştir (Gizem ↔ Nurhat) — aile şifresi sorulmaz */
   const switchProfile = () => {
     clearProfileOnly()
     setSessionState(null)
+    setTasks([])
+  }
+
+  const leaveGroup = () => {
+    if (!session) return
+    const next = { ...session, groupId: undefined, groupName: undefined }
+    saveSession(next)
+    setSessionState(next)
+    setTasks([])
+  }
+
+  const logout = () => {
+    fullLogout()
+    setSessionState(null)
+    setTasks([])
   }
 
   const refreshLocal = () => setTick((t) => t + 1)
 
   useEffect(() => {
-    if (!session?.unlocked) {
+    if (demoMode) {
+      demoEnsureDefaults()
+      setProfiles(demoGetProfiles())
+      setGroups(demoGetGroups())
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        await ensureDefaultProfiles()
+        if (session?.memberId) await migrateLegacyAileIfNeeded(session.memberId)
+      } catch (e) {
+        console.error(e)
+      }
+      if (cancelled) return
+    })()
+
+    const onError = (error: Error) => {
+      console.error('Firestore hatası:', error)
+      setLoading(false)
+    }
+
+    const unsubProfiles = subscribeProfiles(setProfiles, onError)
+    const unsubGroups = subscribeGroups(setGroups, onError)
+
+    return () => {
+      cancelled = true
+      unsubProfiles()
+      unsubGroups()
+    }
+  }, [demoMode, session?.memberId, tick])
+
+  useEffect(() => {
+    if (!session?.groupId) {
+      setTasks([])
       setLoading(false)
       return
     }
 
     if (demoMode) {
-      setMembers(demoGetMembers())
-      setTasks(demoGetTasks())
+      setTasks(demoGetTasksForGroup(session.groupId))
       setLoading(false)
       return
     }
 
     setLoading(true)
-    const onError = (error: Error) => {
-      console.error('Firestore hatası:', error)
-      setLoading(false)
-    }
-    const unsubMembers = subscribeMembers(setMembers, onError)
-    const unsubTasks = subscribeTasks((list) => {
-      setTasks(list)
-      setLoading(false)
-    }, onError)
-
-    return () => {
-      unsubMembers()
-      unsubTasks()
-    }
-  }, [session?.unlocked, session?.memberId, demoMode, tick])
+    return subscribeTasks(
+      session.groupId,
+      (list) => {
+        setTasks(list)
+        setLoading(false)
+      },
+      (error) => {
+        console.error(error)
+        setLoading(false)
+      },
+    )
+  }, [session?.groupId, demoMode, tick])
 
   const value = useMemo(
     () => ({
       session,
-      members,
+      profiles,
+      groups,
       tasks,
       loading,
       demoMode,
       setSession,
       switchProfile,
+      leaveGroup,
+      logout,
       refreshLocal,
     }),
-    [session, members, tasks, loading, demoMode],
+    [session, profiles, groups, tasks, loading, demoMode],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

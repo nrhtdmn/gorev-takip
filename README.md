@@ -50,7 +50,7 @@ git init
 git add .
 git commit -m "Görev takip PWA uygulamasını ekle"
 git branch -M main
-git remote add origin https://github.com/KULLANICI/gorevtakip.git
+git remote add origin https://github.com/nrhtdmn/gorev-takip.git
 git push -u origin main
 ```
 
@@ -58,7 +58,7 @@ git push -u origin main
 
 1. Repo Settings → Pages → Source: **GitHub Actions**
 2. Bu repodaki workflow `Deploy to GitHub Pages` otomatik build alır.
-3. Site adresi: `https://KULLANICI.github.io/gorevtakip/`
+3. Site adresi: `https://nrhtdmn.github.io/gorev-takip/`
 
 Firebase domain allowlist’e Pages URL’inizi ekleyin.
 

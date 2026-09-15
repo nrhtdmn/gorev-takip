@@ -56,9 +56,12 @@ git push -u origin main
 
 ## GitHub Pages ile yayınlama
 
-1. Repo Settings → Pages → Source: **GitHub Actions**
-2. Bu repodaki workflow `Deploy to GitHub Pages` otomatik build alır.
-3. Site adresi: `https://nrhtdmn.github.io/gorev-takip/`
+1. Repo **Settings → Pages**
+2. **Branch:** `gh-pages` / klasör: `/ (root)` seçip Save
+3. Her `main` push’unda Actions derleyip `gh-pages`’e yayınlar
+4. Site: https://nrhtdmn.github.io/gorev-takip/
+
+> Boş sayfa görürsen: Pages yanlışlıkla `main` kaynağını yayınlıyordur. Mutlaka `gh-pages` dalını seç.
 
 Firebase domain allowlist’e Pages URL’inizi ekleyin.
 
